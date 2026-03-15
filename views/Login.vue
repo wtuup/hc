@@ -1,167 +1,82 @@
 <template>
-  <div class="container">
-    <div style="display: flex; width: 400px; height: 350px; margin: auto;
-                position: absolute;
-	              top: 0;
-	              left: 0;
-	              right: 0;
-	              bottom: 0;">
-      <div style="flex: 1; background-color: rgba(250,250,250,0.8);">
-        <div style="text-align: center; font-size: 25px; font-weight: 600; margin: 25px; color: #222">作 业 管 理 系 统</div>
-        <el-form :model="user"
-                 :rules="rules"
-                 ref="userForm"
-                 label-position="left"
-                 label-width="70px"
-                 style="margin: 20px;">
-        <el-form-item style="margin-bottom: 45px;" prop="username" label="用户名">
-          <el-input size="medium" placeholder="请输入用户名" prefix-icon="iconfont icon-r-user2" v-model="user.username"></el-input>
-        </el-form-item>
-        <el-form-item style="margin-bottom: 45px;" prop="password" label="密码">
-          <el-input size="medium" placeholder="请输入密码" prefix-icon="iconfont icon-r-lock" show-password v-model="user.password"></el-input>
-        </el-form-item>
-
-          <el-button type="primary" autocomplete="off" style="font-size: 16px; float: right; width: 100%" @click="login">登 录</el-button>
-          <br/>
-          <el-button type="text" class="bot" style="float: left; color: #222222;" autocomplete="off" @click="$router.push('/register')">注册账号</el-button>
-          <el-button type="text" class="bot" style="float: right; color: #222222;" autocomplete="off" @click="handlePass">找回密码</el-button>
-      </el-form>
-      </div>
-    </div>
-
-
-    <el-dialog title="找回密码" :visible.sync="dialogFormVisible" width="30%" :append-to-body="true">
-      <el-form label-width="100px">
+  <div class="login-bg">
+    <el-card class="login-card">
+      <h2 style="text-align:center;margin-bottom:24px;color:#409EFF">🥬 生鲜销售系统</h2>
+      <el-form :model="form" label-width="80px">
         <el-form-item label="用户名">
-          <el-input v-model="pass.username" autocomplete="off"></el-input>
+          <el-input v-model="form.username" placeholder="请输入用户名" prefix-icon="User" />
         </el-form-item>
-        <el-form-item label="手机号">
-          <el-input v-model="pass.phone" autocomplete="off"></el-input>
+        <el-form-item label="密码">
+          <el-input v-model="form.password" type="password" show-password
+                    placeholder="请输入密码" prefix-icon="Lock" @keyup.enter="login" />
         </el-form-item>
-        <div style="width: 100%;text-align: center;">
-
-          密码将重置为:123<br>登录系统后请尽快修改
-        </div>
+        <el-form-item>
+          <el-button type="primary" style="width:100%" :loading="loading" @click="login">登 录</el-button>
+        </el-form-item>
+        <el-form-item>
+          <el-button style="width:100%" @click="showRegister=true">没有账号？立即注册</el-button>
+        </el-form-item>
       </el-form>
-        <el-button type="info" @click="dialogFormVisible = false"> 取 消</el-button>
-        <el-button type="primary" @click="passwordBack"> 重置密码</el-button>
-    </el-dialog>
+    </el-card>
   </div>
+
+  <el-dialog title="注册账号" v-model="showRegister" width="400px">
+    <el-form :model="regForm" label-width="80px">
+      <el-form-item label="用户名"><el-input v-model="regForm.username" /></el-form-item>
+      <el-form-item label="密码"><el-input v-model="regForm.password" type="password" show-password /></el-form-item>
+      <el-form-item label="昵称"><el-input v-model="regForm.nickname" /></el-form-item>
+    </el-form>
+    <template #footer>
+      <el-button @click="showRegister=false">取消</el-button>
+      <el-button type="primary" @click="register">注册</el-button>
+    </template>
+  </el-dialog>
 </template>
 
-<script>
-import { resetRouter, setRoutes } from "@/router";
-import Identify from "@/components/Identify";
+<script setup>
+import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useUserStore } from '@/stores/user'
+import { ElMessage } from 'element-plus'
+import api from '@/api'
 
-export default {
-  name: "Login",
-  data() {
-    return {
-      user: {},
-      pass: {},
-      code: '',
-      dialogFormVisible: false,
-      // 图片验证码
-      identifyCode: '',
-      // 验证码规则
-      identifyCodes: '3456789ABCDEFGHGKMNPQRSTUVWXY',
-      rules: {
-        username: [
-          { required: true, message: '请输入用户名', trigger: 'blur' },
-          { min: 2, max: 10, message: '长度在 2 到 10 个字符', trigger: 'blur' }
-        ],
-        password: [
-          { required: true, message: '请输入密码', trigger: 'blur' },
-          { min: 1, max: 20, message: '长度在 1 到 20 个字符', trigger: 'blur' }
-        ],
-      }
-    }
-  },
-  components: { Identify },
-  mounted() {
-    // 重置路由
-    resetRouter()
-    this.refreshCode()
-  },
-  methods: {
-    login() {
-      this.$refs['userForm'].validate((valid) => {
-        if (valid) {  // 表单校验合法
-          this.request.post("/user/login", this.user).then(res => {
-            if (res.code === '200') {
-              localStorage.setItem("user", JSON.stringify(res.data))  // 存储用户信息到浏览器
-              localStorage.setItem("menus", JSON.stringify(res.data.menus))  // 存储用户信息到浏览器
+const router = useRouter()
+const userStore = useUserStore()
+const loading = ref(false)
+const showRegister = ref(false)
+const form = ref({ username: '', password: '' })
+const regForm = ref({ username: '', password: '', nickname: '' })
 
-              // 动态设置当前用户的路由
-              setRoutes()
-              this.$router.push("/")
-              this.$message.success("登录成功")
-            } else {
-              this.$message.error(res.msg)
-            }
-          }).catch((e) => {
-            console.log(e);
-            if (
-              e.response == undefined ||
-              e.response.data == undefined
-            ) {
-              this.$message({
-                showClose: true,
-                message: e,
-                type: "error",
-                duration: 20000,
-              });
-            } else {
-              this.$message({
-                showClose: true,
-                message: e.response.data,
-                type: "error",
-                duration: 20000,
-              });
-            }
-          })
-        }
-      });
-    },
-    // 切换验证码
-    refreshCode() {
-      this.identifyCode = ''
-      this.makeCode(this.identifyCodes, 4)
-    },
-    // 生成随机验证码
-    makeCode(o, l) {
-      for (let i = 0; i < l; i++) {
-        this.identifyCode += this.identifyCodes[Math.floor(Math.random() * (this.identifyCodes.length))]
-      }
-    },
-    handlePass() {
-      this.dialogFormVisible = true
-      this.pass = {}
-    },
-    passwordBack() {
-      this.request.put("/user/reset", this.pass).then(res => {
-        if (res.code === '200') {
-          this.$message.success("重置密码成功，新密码为：123，请尽快修改密码")
-          this.dialogFormVisible = false
-        } else {
-          this.$message.error(res.msg)
-        }
-      })
-    }
+const login = async () => {
+  loading.value = true
+  try {
+    const res = await api.post('/auth/login', form.value)
+    userStore.setToken(res.data.token)
+    await userStore.fetchUserInfo()
+    ElMessage.success('登录成功')
+    router.push(userStore.isAdmin() ? '/admin' : '/home')
+  } finally {
+    loading.value = false
   }
+}
+
+const register = async () => {
+  await api.post('/auth/register', regForm.value)
+  ElMessage.success('注册成功，请登录')
+  showRegister.value = false
 }
 </script>
 
-<style>
-.container {
-  height: 100vh;
-  overflow: hidden;
-  /*background-color: #FFCA84;*/
-  background-image: url("../assets/作业.jpg");
-  background-size: 100%;
-  color: #666;
+<style scoped>
+.login-bg {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
-.bot {
-  font-size: 16px !important;
+.login-card {
+  width: 400px;
+  border-radius: 12px;
 }
 </style>
